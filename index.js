@@ -2,6 +2,7 @@ const cors = require("cors"); // 최상단에 있는 게 바람직
 const express = require("express");
 const app = express();
 const port = 8000;
+const multer = require('multer');
 
 // 본문을 통해서 넘어온 요청을 파싱(변환) = 미들웨어(body-parser)를 이용해서 변환해 줘야 함
 app.use(express.json()); // json 형식으로 변환 {"name" : "Alice", "age" : "25"}
@@ -13,6 +14,22 @@ var corsOptions = {
 };
 
 app.use(cors(corsOptions));
+app.use("/uploads", express.static('uploads')); // uploads 폴더에 접근 권한 부여
+// app.use(express.static('uploads'));
+
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'uploads/')
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 5)
+    cb(null, uniqueSuffix + file.originalname)
+  }
+})
+
+const upload = multer({ storage: storage })
+
 
 const mysql = require("mysql");
 const db = mysql.createConnection({
@@ -65,15 +82,19 @@ app.get("/detail", (req, res) => { // req : 요청 res : 반응
   });
 });
 
-app.post('/insert', (req, res) => {
-  console.log(req.body.title);
-  let title =req.body.title;
+app.post('/insert',upload.single('image'), (req, res) => {
+
+  let title = req.body.title;
   let content = req.body.content;
+  // req.file에 파일이 있으면 보여 주고 없으면 빈값
+  let imagePath = req.file? req.file.path : null;
+
   /* const sql = "INSERT INTO board (BOARD_TITLE, BOARD_CONTENT, REGISTER_ID) VALUES (title, content, 'admin')"; */
-  const sql = "INSERT INTO board (BOARD_TITLE, BOARD_CONTENT, REGISTER_ID) VALUES (?, ?, 'admin')";
-  db.query(sql, [title, content], (err,result) => {
+  const sql = "INSERT INTO board (BOARD_TITLE, BOARD_CONTENT, IMAGE_PATH, REGISTER_ID) VALUES (?,?,?,'admin')";
+  db.query(sql, [title, content, imagePath], (err, result) => {
+    if (err) throw err;  
     res.send(result);
-  })
+  })  
 })
 
 app.post('/update', (req, res) => {
